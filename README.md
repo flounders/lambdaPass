@@ -54,5 +54,4 @@ $ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" remove flounders github
 ```
 
 For now the username and location are required arguments. Right now it removes
-passwords if the record matches either the username or the location. Again it's
-on my todo list.
+passwords if the record matches both the username and the location.

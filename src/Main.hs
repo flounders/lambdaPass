@@ -49,7 +49,7 @@ data Account = Account { username :: Username
                        , password :: Password
                        , location :: Location
                        , notes    :: Notes
-                       } deriving (Show)
+                       } deriving (Eq, Show)
 
 type Accounts = [Account]
 
@@ -226,11 +226,11 @@ removePassword fn fpr key un loc = do
                   let accounts = (decode $ BL.fromStrict plaintext)
                   let filteredLocations = case loc of
                                             Nothing -> accounts
-                                            Just x -> filter (\y -> x /= location y) <$> accounts
+                                            Just x -> filter (\y -> x == location y) <$> accounts
                   let filteredAccounts = case un of 
                                            Nothing -> filteredLocations
-                                           Just x -> filter (\y -> x /= username y) <$> filteredLocations
-                  let newJSONdata = encode filteredAccounts
+                                           Just x -> filter (\y -> x == username y) <$> filteredLocations
+                  let newJSONdata = encode $ (\ufs fs -> filter (\x -> not (x `elem` fs)) ufs) <$> accounts <*> filteredAccounts
                   results <- encrypt' key (fromString fpr) (BL.toStrict newJSONdata)
                   errorCheck results
     where errorCheck (Left e) = putStrLn e
