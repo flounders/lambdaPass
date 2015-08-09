@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.List
 import Data.String
 import Options.Applicative
+import System.IO
 
 type Filename    = String
 type Fingerprint = String
@@ -39,8 +40,8 @@ type Notes       = String
 -- Option Parser datatypes
 data Command
     = Add Username Location Notes
-    | ViewAll
-    | Remove Username Location
+    | View (Maybe Username) (Maybe Location)
+    | Remove (Maybe Username) (Maybe Location)
 
 data Options = Options Filename Fingerprint KeyLocation Command
 
@@ -73,20 +74,20 @@ main :: IO ()
 main = run =<< execParser
        (parseOptions `withInfo` "Password manager using GPG, JSON and most importantly Haskell.")
 
+-- Command line option parsing
+
 run :: Options -> IO ()
 run (Options file fpr key cmd) = do
   case cmd of
-    Add u l n  -> do
+    Add u l n -> do
              putStrLn "Type in the password you want to add: "
+             hFlush stdout
+             hSetEcho stdin False
              p <- getLine
+             hSetEcho stdin True
              addNewPassword file fpr key u p l n
-    ViewAll    -> readPassword file key Nothing Nothing
-    Remove u l -> removePassword file fpr key (Just u) (Just l)
-
-testData :: Accounts
-testData = [ (Account "swilliams" "password" "speedy" "none")
-           , (Account "colonelflounders" "testing" "gmail" "none")
-           ]
+    View u l -> readPassword file key u l
+    Remove u l -> removePassword file fpr key u l
 
 withInfo :: Parser a -> String -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
@@ -109,6 +110,12 @@ parseKey = strOption $
            short 'k' <> long "key" <> metavar "GPGKEY" <>
            help "This is the path to where your GPG key is."
 
+parseUsername :: Parser (Maybe Username)
+parseUsername = optional $ strOption $ short 'u' <> long "username" <> metavar "USERNAME"
+
+parseLocation :: Parser (Maybe Location)
+parseLocation = optional $ strOption $ short 'l' <> long "location" <> metavar "LOCATION"
+
 parseAdd :: Parser Command
 parseAdd = Add
            <$> argument str (metavar "USERNAME")
@@ -117,25 +124,21 @@ parseAdd = Add
 
 parseRemove :: Parser Command
 parseRemove = Remove
-              <$> argument str (metavar "USERNAME")
-              <*> argument str (metavar "LOCATION")
+              <$> parseUsername
+              <*> parseLocation
+
+parseView :: Parser Command
+parseView = View
+            <$> parseUsername
+            <*> parseLocation
 
 parseCommand :: Parser Command
 parseCommand = subparser $
                command "add" (parseAdd `withInfo` "Add a username, location and password to your datastore.") <>
-               command "view" ((pure ViewAll) `withInfo` "View all accounts.") <>
+               command "view" (parseView `withInfo` "View all accounts.") <>
                command "remove" (parseRemove `withInfo` "Remove a username and password from the datastor.")
 
-{- read password
-
-   get password file name
-   open password file
-   decrypt password file
-   parse password file
-   retrieve relevant password(s)
-   print password(s)
-   close file
--}
+-- Functions for operating on the password file
 
 readPassword :: Filename
              -> KeyLocation
@@ -143,35 +146,17 @@ readPassword :: Filename
              -> Maybe Location
              -> IO ()
 readPassword fn key un loc = do
-  fContents <- B.readFile fn
-  jsonData <- decrypt' (fromString key) fContents
+  jsonData <- readContents fn key
   case jsonData of
     Left (NoData) -> return ()
-    Left (BadPass) -> putStrLn "Wrong password. Please enter again."
+    Left _ -> decryptErrorHandler jsonData
     Right plaintext -> do
                   let accounts = decode $ BL.fromStrict plaintext
-                  let filteredLocations = case loc of
-                                            Nothing -> accounts
-                                            Just x -> filter (\y -> x == location y) <$> accounts
-                  let filteredAccounts = case un of 
-                                           Nothing -> filteredLocations
-                                           Just x -> filter (\y -> x == username y) <$> filteredLocations
+                  let filteredAccounts = accountFiltering un loc accounts accounts
                   errorCheck filteredAccounts
       where f x = "Username: " ++ username x ++ "\nPassword: " ++ password x ++ "\nLocation: " ++ location x ++ "\nNotes: " ++ notes x
             errorCheck (Nothing) = return ()
             errorCheck (Just xs) = putStrLn . (intercalate "\n\n") $ map f xs
-
-{- add password
-
-   get password file name
-   open password file
-   decrypt password file
-   parse password file
-   append new entry to structure
-   encrypt structure
-   write to file
-   close file
--}
 
 addNewPassword :: Filename
                -> Fingerprint
@@ -182,21 +167,15 @@ addNewPassword :: Filename
                -> Notes
                -> IO ()
 addNewPassword fn fpr key user pass loc note = do
-  fContents <- B.readFile fn
-  jsonData <- decrypt' (fromString key) fContents
+  jsonData <- readContents fn key
   case jsonData of
     Left (NoData) -> do
                   let newJSONdata = encode $ appendPassword user pass loc note Nothing
-                  results <- encrypt' key (fromString fpr) (BL.toStrict newJSONdata)
-                  errorCheck results
-    Left (BadPass) -> putStrLn "Wrong password. Please enter again."
-    Left _ -> putStrLn "Ran into an unhandled error."
+                  writeNewContents fn key fpr newJSONdata
+    Left _ -> decryptErrorHandler jsonData
     Right plaintext -> do
                   let newJSONdata = encode $ appendPassword user pass loc note (decode $ BL.fromStrict plaintext)
-                  results <- encrypt' key (fromString fpr) (BL.toStrict newJSONdata)
-                  errorCheck results
-    where errorCheck (Left e) = putStrLn e
-          errorCheck (Right message) = B.writeFile fn message
+                  writeNewContents fn key fpr newJSONdata
 
 
 appendPassword :: Username
@@ -216,23 +195,45 @@ removePassword :: Filename
                -> Maybe Location
                -> IO ()
 removePassword fn fpr key un loc = do
-  fContents <- B.readFile fn
-  jsonData <- decrypt' (fromString key) fContents
+  jsonData <- readContents fn key
   case jsonData of
     Left (NoData) -> putStrLn "No passwords in file."
-    Left (BadPass) -> putStrLn "Wrong password. Please enter again."
-    Left _ -> putStrLn "Ran into an unhandled error."
+    Left _ -> decryptErrorHandler jsonData
     Right plaintext -> do
                   let accounts = (decode $ BL.fromStrict plaintext)
-                  let filteredLocations = case loc of
-                                            Nothing -> accounts
-                                            Just x -> filter (\y -> x == location y) <$> accounts
-                  let filteredAccounts = case un of 
-                                           Nothing -> filteredLocations
-                                           Just x -> filter (\y -> x == username y) <$> filteredLocations
+                  let filteredAccounts = accountFiltering un loc accounts (Just [])
                   let newJSONdata = encode $ (\ufs fs -> filter (\x -> not (x `elem` fs)) ufs) <$> accounts <*> filteredAccounts
-                  results <- encrypt' key (fromString fpr) (BL.toStrict newJSONdata)
-                  errorCheck results
+                  writeNewContents fn key fpr newJSONdata
+
+decryptErrorHandler :: Either DecryptError Plain -> IO ()
+decryptErrorHandler (Left (BadPass)) = putStrLn "Wrong password. Please enter again."
+decryptErrorHandler (Left _)         = putStrLn "Encountered an unhandled error."
+decryptErrorHandler _                = putStrLn "Something is up with Haskell's pattern matching if you see this."
+
+accountFiltering :: Maybe Username
+                 -> Maybe Location 
+                 -> Maybe Accounts
+                 -> Maybe Accounts
+                 -> Maybe Accounts
+accountFiltering (Nothing) (Nothing) _ defaultValue = defaultValue
+accountFiltering (Just u) (Nothing) accounts _ = filter (\x -> u == username x) <$> accounts
+accountFiltering (Nothing) (Just l) accounts _ = filter (\x -> l == location x) <$> accounts
+accountFiltering (Just u) (Just l) accounts _ = filter (\x -> u == username x && l == location x) <$> accounts
+
+readContents :: Filename
+             -> KeyLocation
+             -> IO (Either DecryptError Plain)
+readContents fn key = do
+  fContents <- B.readFile fn
+  decrypt' (fromString key) fContents
+
+writeNewContents :: Filename
+                 -> KeyLocation
+                 -> Fingerprint
+                 -> BL.ByteString
+                 -> IO ()
+writeNewContents fn key fpr contents = do
+  results <- encrypt' key (fromString fpr) (BL.toStrict contents)
+  errorCheck results
     where errorCheck (Left e) = putStrLn e
           errorCheck (Right message) = B.writeFile fn message
-

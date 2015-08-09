@@ -7,6 +7,14 @@ A password manager written in Haskell using GPGME and JSON.
 lambdaPass offers basic password management. More features will
 be added over time and upon request.
 
+## Dependencies
+
+You will need the C headers for GPGME. On Ubuntu you can install
+this dependency by running `sudo apt-get install libgpgme11-dev`,
+but other package managers will obviously be different. Other
+dependencies are aeson, h-gpgme and optparse-applicative which
+Cabal will install for you using the commands below.
+
 ## Build
 
 To build lambdaPass do the following:
