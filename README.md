@@ -9,9 +9,11 @@ be added over time and upon request.
 
 ## Dependencies
 
-You will need the C headers for GPGME. On Ubuntu you can install
-this dependency by running `sudo apt-get install libgpgme11-dev`,
-but other package managers will obviously be different. Other
+You will need the C headers for GPGME, and the standard C++ libary
+for some Haskell packages. On Ubuntu you can install GPGME's headers
+by running `sudo apt-get install libgpgme11-dev`, but other package
+managers will obviously be different. Most distributions should have
+the standard C++ library installed, but you mileage may vary. Other
 dependencies are aeson, h-gpgme and optparse-applicative which
 Cabal will install for you using the commands below.
 
