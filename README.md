@@ -22,6 +22,8 @@ Cabal will install for you using the commands below.
 To build lambdaPass do the following:
 
 ```
+$ cabal update
+$ cabal sandbox init
 $ cabal install --only-dependencies
 $ cabal build
 ```
@@ -34,6 +36,18 @@ the project is more stable I'll work on readying it for installation.
 You will need a GPG key. I would recommend a separate one just for this
 program instead of using your email key. Also you will need an empty
 file to store your passwords in.
+
+To create a key:
+
+```
+$ gpg --gen-key
+```
+
+or if you are looking for more options
+
+```
+$ gpg --full-gen-key
+```
 
 To add a password:
 
@@ -54,8 +68,9 @@ To view your passwords:
 $ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" view
 ```
 
-This will dump all of your passwords for now. Working on changing that so that
-it's selective by username and location.
+This will dump all of your passwords by default. You can filter by username,
+location or username and location together. Run `lambdaPass view` to see format
+specifics.
 
 To remove a password:
 
