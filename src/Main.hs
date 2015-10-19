@@ -22,6 +22,7 @@ module Main where
 
 import Types
 import Command.Parser
+import Run.Control.Parser (parseRunControl, fileParse)
 
 import Crypto.Gpgme
 import Data.Aeson
@@ -30,7 +31,6 @@ import qualified Data.ByteString.Lazy as BL
 import Data.List
 import Data.String
 import Options.Applicative
-import RCParser (parseRunControl, fileParse)
 import System.Directory (doesFileExist)
 import System.IO
 
@@ -58,6 +58,7 @@ main = do
                            )
         desc = "Password manager using GPG, JSON and most importantly Haskell."
 
+
 -- Command line option parsing
 
 run :: Options -> IO ()
@@ -69,67 +70,88 @@ run (Options file fpr key cmd) = do
              hSetEcho stdin False
              p <- getLine
              hSetEcho stdin True
-             addNewPassword file fpr key u p l n
-    ViewAccount u l -> viewAccount file key u l
-    ViewPassword u l -> viewPassword file key u l
-    Remove u l -> removePassword file fpr key u l
+             accounts <- readData file key
+             newAccounts <- addAccount accounts u p l n
+             case newAccounts of
+               [] -> return ()
+               _ -> writeData file key fpr newAccounts
+    ViewAccount u l -> do
+      accounts <- readData file key
+      viewAccount accounts u l
+    ViewPassword u l -> do
+      accounts <- readData file key
+      viewPassword accounts u l
+    Remove u l -> do
+      accounts <- readData file key
+      let newAccounts = removeAccount accounts u l
+      case newAccounts of
+        Just xs -> writeData file key fpr xs
+        Nothing -> putStrLn "Unable to delete account(s)."
+
 
 -- Functions for operating on the password file
 
-viewPassword :: Filename
-                -> KeyLocation
+readData :: Filename
+            -> KeyLocation
+            -> IO (Either DecryptError Accounts)
+readData fn key = do
+  fileData <- readContents fn key
+  case fileData of
+    Left x -> return $ Left x
+    Right x -> return . Right $ f x
+  where f x = case decode $ BL.fromStrict x of
+                Just y -> y
+                Nothing -> []
+
+
+writeData :: Filename
+             -> KeyLocation
+             -> Fingerprint
+             -> Accounts
+             -> IO ()
+writeData fn key fpr accs = writeNewContents fn key fpr $ encode accs
+
+
+viewPassword :: Either DecryptError Accounts
                 -> Maybe Username
                 -> Maybe Location
                 -> IO ()
-viewPassword fn key un loc = do
-             jsonData <- readContents fn key
-             case jsonData of
-               Left (NoData) -> return ()
-               Left x -> decryptErrorHandler x
-               Right plaintext -> do
-                     let accounts = decode $ BL.fromStrict plaintext
-                     let filteredAccounts = accountFiltering un loc accounts accounts
-                     errorCheck filteredAccounts
-                 where f x = password x
-                       errorCheck (Nothing) = return ()
-                       errorCheck (Just xs) = putStrLn . (intercalate "\n\n") $ map f xs
+viewPassword (Left (NoData)) _  _  = return ()
+viewPassword (Right xs) un loc = do
+  let filteredAccounts = accountFiltering un loc (Just xs) (Just xs)
+  errorCheck filteredAccounts
+  where errorCheck (Nothing) = return () 
+        errorCheck (Just ys) = putStrLn . (intercalate "\n\n") $ map password ys
+viewPassword (Left x) _ _ = decryptErrorHandler x
 
-viewAccount :: Filename
-               -> KeyLocation
+
+viewAccount :: Either DecryptError Accounts
                -> Maybe Username
                -> Maybe Location
                -> IO ()
-viewAccount fn key un loc = do
-  jsonData <- readContents fn key
-  case jsonData of
-    Left (NoData) -> return ()
-    Left x -> decryptErrorHandler x
-    Right plaintext -> do
-                  let accounts = decode $ BL.fromStrict plaintext
-                  let filteredAccounts = accountFiltering un loc accounts accounts
-                  errorCheck filteredAccounts
-      where f x = "Username: " ++ username x ++ "\nPassword: " ++ password x ++ "\nLocation: " ++ location x ++ "\nNotes: " ++ notes x
-            errorCheck (Nothing) = return ()
-            errorCheck (Just xs) = putStrLn . (intercalate "\n\n") $ map f xs
+viewAccount (Left (NoData)) _ _ = return ()
+viewAccount (Right xs) un loc = do
+  let filteredAccounts = accountFiltering un loc (Just xs) (Just xs)
+  errorCheck filteredAccounts 
+  where errorCheck (Nothing) = return ()
+        errorCheck (Just ys) = putStrLn . (intercalate "\n\n") $ map f ys
+        f x = "Username: " ++ username x ++
+              "\nPassword: " ++ password x ++
+              "\nLocation: " ++ location x ++
+              "\nNotes: " ++ notes x
+viewAccount (Left x) _ _ = decryptErrorHandler x
 
-addNewPassword :: Filename
-               -> Fingerprint
-               -> KeyLocation
-               -> Username
-               -> Password
-               -> Location
-               -> Notes
-               -> IO ()
-addNewPassword fn fpr key user pass loc note = do
-  jsonData <- readContents fn key
-  case jsonData of
-    Left (NoData) -> do
-                  let newJSONdata = encode $ appendPassword user pass loc note Nothing
-                  writeNewContents fn key fpr newJSONdata
-    Left x -> decryptErrorHandler x
-    Right plaintext -> do
-                  let newJSONdata = encode $ appendPassword user pass loc note (decode $ BL.fromStrict plaintext)
-                  writeNewContents fn key fpr newJSONdata
+
+addAccount :: Either DecryptError Accounts
+              -> Username
+              -> Password
+              -> Location
+              -> Notes
+              -> IO Accounts
+addAccount (Left (NoData)) un pass loc note = return $ appendPassword un pass loc note Nothing 
+addAccount (Left x) _ _ _ _ = decryptErrorHandler x >> return []
+addAccount (Right accs) un pass loc note = return $ appendPassword un pass loc note (Just accs)
+
 
 appendPassword :: Username
                -> Password
@@ -141,22 +163,15 @@ appendPassword un pass loc note (Nothing) = [(Account un pass loc note)]
 appendPassword un pass loc note (Just xs) = xs ++ [(Account un pass loc note)]
 
 
-removePassword :: Filename
-               -> Fingerprint
-               -> KeyLocation
-               -> Maybe Username
-               -> Maybe Location
-               -> IO ()
-removePassword fn fpr key un loc = do
-  jsonData <- readContents fn key
-  case jsonData of
-    Left (NoData) -> putStrLn "No passwords in file."
-    Left z -> decryptErrorHandler z
-    Right plaintext -> do
-                  let accounts = (decode $ BL.fromStrict plaintext)
-                  let filteredAccounts = accountFiltering un loc accounts (Just [])
-                  let newJSONdata = encode $ (\ufs fs -> filter (\x -> not (x `elem` fs)) ufs) <$> accounts <*> filteredAccounts
-                  writeNewContents fn key fpr newJSONdata
+removeAccount :: Either DecryptError Accounts
+                 -> Maybe Username
+                 -> Maybe Location
+                 -> Maybe Accounts
+removeAccount (Left _) _ _ = Nothing
+removeAccount (Right xs) un loc = do
+  filteredAccounts <- accountFiltering un loc (Just xs) (Just [])
+  return $ filter (\x -> not (x `elem` filteredAccounts)) xs
+
 
 decryptErrorHandler :: DecryptError -> IO ()
 decryptErrorHandler (BadPass) = putStrLn "Wrong password. Please enter again."
