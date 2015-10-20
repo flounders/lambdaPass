@@ -49,6 +49,13 @@ or if you are looking for more options
 $ gpg --full-gen-key
 ```
 
+Before you use the program you will need to create the file you want to
+store your passwords in. You can do this by simply running:
+
+```
+$ touch passwords
+```
+
 To add a password:
 
 ```
@@ -65,18 +72,40 @@ to use, and -k is the location of that key.
 To view your passwords:
 
 ```
-$ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" view
+$ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" view pass
 ```
 
 This will dump all of your passwords by default. You can filter by username,
 location or username and location together. Run `lambdaPass view` to see format
 specifics.
 
-To remove a password:
+To remove an account:
 
 ```
-$ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" remove flounders github
+$ lambdaPass -f passwords -p BDCADD4A -k "~/.gnupg" remove -u flounders -l github
 ```
 
-For now the username and location are required arguments. Right now it removes
-passwords if the record matches both the username and the location.
+Accounts that match the username "flounders" and the location "github" will be
+removed. You do not have to use username and location together to delete accounts
+but it is recommended. If you don't supply either a username or a location
+nothing will be removed.
+
+### .lambdaPassrc
+
+You can omit the -f -p and -k required options if you have a .lambdaPassrc file
+in your home folder. The format is very precise so try to stick to this as much
+as possible.
+
+```
+file=/home/user/.passwords
+fingerprint=01234567
+keydir=/home/user/.gnupg
+```
+
+Absolute paths are really important at this time. Relative paths will be supported
+in the near future along with a more generous run control parser.
+
+## Input
+
+Your input on the program is greatly desired and appreciated. You can either email
+me at steven.m.williams at yandex dot com or you can open an issue.
