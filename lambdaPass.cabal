@@ -22,7 +22,8 @@ executable lambdaPass
   build-depends:       base >=4.7,
                        aeson,
                        bytestring,
-                       directory,
+                       directory >= 1.2.3.0,
+                       filepath,
                        h-gpgme,
                        optparse-applicative,
                        parsec

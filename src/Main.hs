@@ -31,19 +31,21 @@ import qualified Data.ByteString.Lazy as BL
 import Data.List
 import Data.String
 import Options.Applicative
-import System.Directory (doesFileExist)
+import System.Directory
+import System.FilePath
 import System.IO
 
 main :: IO ()
 main = do
-  exists <- doesFileExist rcPath 
+  baseConfPath <- getXdgDirectory XdgConfig "lambdaPass"
+  confPath <- return $ baseConfPath </> "lambdaPass.conf"
+  exists <- doesFileExist confPath
   case exists of
     True -> do
-      withRC rcPath
+      withRC confPath
     False -> do
       withoutRC
-  where rcPath = "/home/swilliams/.lambdaPassrc"
-        withRC path = do
+  where withRC path = do
           results <- fileParse parseRunControl path
           case results of
             Left _ -> putStrLn ("Encountered an error parsing " ++ path) >> withoutRC
