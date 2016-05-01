@@ -23,11 +23,7 @@ run (Options file fpr key cmd) = do
       viewAccount accs u l n fields
     Update sU sL sN uU uP uL uN -> do
       accs <- readStorageData file key
-      nP <- case uP of
-              Just a -> do
-                p <- a
-                return $ Just p
-              Nothing -> return $ Nothing
+      nP <- sequence uP
       updatedAccs <- updateAccount accs sU sL sN uU nP uL uN
       writeStorageData file key fpr updatedAccs
     Remove u l n -> do
