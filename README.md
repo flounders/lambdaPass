@@ -49,13 +49,6 @@ or if you are looking for more options
 $ gpg --full-gen-key
 ```
 
-Before you use the program you will need to create the file you want to
-store your passwords in. You can do this by simply running:
-
-```
-$ touch passwords
-```
-
 ### Adding a Password
 
 To add a password:
