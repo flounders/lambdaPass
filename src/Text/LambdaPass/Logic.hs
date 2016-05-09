@@ -54,10 +54,11 @@ viewAccount (Right accs) u l n fields = do
   let sel = accountFiltering u l n accs
   _ <- sequence . join . map (\x -> map (flip ($) x) fieldFs) $ sel
   return ()
-  where f (UserField) = putStrLn . username
-        f (PassField) = putStrLn . password
-        f (LocField)  = putStrLn . location
-        f (NotesField) = putStrLn . notes
+  where f x = putStrLn . (case x of
+                            UserField  -> username
+                            PassField  -> password
+                            LocField   -> location
+                            NotesField -> notes)
         fieldFs = map f $ sort fields
 
 updateAccount :: Either DecryptError Accounts
@@ -87,9 +88,11 @@ removeAccount (Right accs) u l n = return $ filter (\x -> not $ elem x accsToRem
 
 -- Common helper functions
 decryptErrorHandler :: DecryptError -> IO ()
-decryptErrorHandler (NoData)  = putStrLn "No data in the passwords file."
-decryptErrorHandler (BadPass) = putStrLn "Wrong password. Please enter again."
-decryptErrorHandler _         = putStrLn "Encountered an unhandled error."
+decryptErrorHandler x =
+  putStrLn $ case x of
+               NoData  -> "No data in the passwords file."
+               BadPass -> "Wrong password. Please enter again."
+               _       -> "Encountered an unhandled error."
 
 accountFiltering :: Maybe Username
                  -> Maybe Location
