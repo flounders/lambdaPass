@@ -18,6 +18,7 @@ data AccountFields = UserField
 data Command
   = Add Username (Maybe Location) (Maybe Notes)
   | View (Maybe Username) (Maybe Location) (Maybe Notes) [AccountFields]
+  | ViewAll [AccountFields]
   | Update { selUser  :: Maybe Username 
            , selLoc   :: Maybe Location
            , selNotes :: Maybe Notes
@@ -98,15 +99,22 @@ parseAdd = Add
 
 parseView :: Parser Command
 parseView =
-  View 
+  (View 
   <$> optional parseUsername
   <*> optional parseLocation
   <*> optional parseNotes
-  <*> parseFields
+  <*> parseFields "p")
+  <|>
+  (subparser $ command "all" (parserViewAll `withInfo` "View all accounts."))
 
-parseFields :: Parser [AccountFields]
-parseFields = 
-  foldr f [] <$> strOption (short 'f' <> long "fields" <> value "p" <> metavar "FIELDS" 
+parserViewAll :: Parser Command
+parserViewAll = 
+  ViewAll
+  <$> parseFields "ul"
+
+parseFields :: String -> Parser [AccountFields]
+parseFields def = 
+  foldr f [] <$> strOption (short 'f' <> long "fields" <> value def <> metavar "FIELDS" 
   <> help ("These are the account fields you wish displayed. Use 'u' for user, 'l' for location " 
   ++ "'n' for notes and 'p' for password. Default behavior will be to just show password."))
   where f x acc = case x of

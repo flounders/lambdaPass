@@ -21,6 +21,9 @@ run (Options file fpr key cmd) = do
     View u l n fields -> do
       accs <- readStorageData file key
       viewAccount accs u l n fields
+    ViewAll fields -> do
+      accs <- readStorageData file key
+      viewAll accs fields
     Update sU sL sN uU uP uL uN -> do
       accs <- readStorageData file key
       nP <- sequence uP
@@ -52,14 +55,24 @@ viewAccount :: Either DecryptError Accounts
 viewAccount (Left e) _ _ _ _ = decryptErrorHandler e
 viewAccount (Right accs) u l n fields = do
   let sel = accountFiltering u l n accs
-  _ <- sequence . join . map (\x -> map (flip ($) x) fieldFs) $ sel
+  _ <- sequence . join . map (\x -> map (flip ($) x) (fieldDisplay fields)) $ sel
   return ()
+
+fieldDisplay :: [AccountFields] -> [Account -> IO ()]
+fieldDisplay fields = map f $ sort fields
   where f x = putStrLn . (case x of
                             UserField  -> username
                             PassField  -> password
                             LocField   -> location
                             NotesField -> notes)
-        fieldFs = map f $ sort fields
+
+viewAll :: Either DecryptError Accounts
+        -> [AccountFields]
+        -> IO ()
+viewAll (Left e) _  = decryptErrorHandler e
+viewAll (Right accs) fields = do
+  _ <- sequence . join . map (\x -> map (flip ($) x) (fieldDisplay fields)) $ accs
+  return ()
 
 updateAccount :: Either DecryptError Accounts
               -> Maybe Username
