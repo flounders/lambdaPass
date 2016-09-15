@@ -112,6 +112,8 @@ parserViewAll =
   ViewAll
   <$> parseFields "ul"
 
+-- parseFields takes a string that contains the default fields you wish to display.
+-- It then returns the fields the user requested or that you set as default.
 parseFields :: String -> Parser [AccountFields]
 parseFields def = 
   foldr f [] <$> strOption (short 'f' <> long "fields" <> value def <> metavar "FIELDS" 
@@ -124,7 +126,6 @@ parseFields def =
                     'n' -> NotesField : acc
                     _ -> acc
 
-
 parseUpdate :: Parser Command
 parseUpdate = 
   Update
@@ -133,7 +134,9 @@ parseUpdate =
   <*> optional parseNotes
   <*> optional (strOption $ long "uU" <> long "updateUser" <> metavar "NEWUSER" 
                 <> help "Update the username with the new username as the argument.")
-  <*> optional ((\_ -> passPrompt) <$> switch (long "uP" <> long "updatePass"
+  <*> optional ((\x -> case x of
+                         True -> passPrompt
+                         False -> return "") <$> switch (long "uP" <> long "updatePass"
                 <> help "Update the password with a new password that will be prompted for."))
   <*> optional (strOption $ long "uL" <> long "updateLoc" <> metavar "NEWLOC"
                 <> help "Update the location with the new location as the argument.")
