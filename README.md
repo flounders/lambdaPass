@@ -131,10 +131,10 @@ always use the file and directory options at the command prompt you can do that.
 Just keep in mind that lpass needs to have this information to work, otherwise,
 it will tell you what's missing and do nothing. The order in the config file
 doesn't matter, but it does need to be under base. For formatting questions
-consult the YAML standard.
+consult the YAML specification.
 
 Absolute paths are really important at this time. Relative paths will be supported
-eventually.
+later.
 
 ## Input
 
