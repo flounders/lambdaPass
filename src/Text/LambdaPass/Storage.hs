@@ -1,45 +1,58 @@
- {-# LANGUAGE OverloadedStrings #-}
- module Text.LambdaPass.Storage where
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+module Text.LambdaPass.Storage where
 
 import Text.LambdaPass.Types
 
 import Crypto.Gpgme
-import Control.Monad (mzero)
+import Control.Monad (mzero) -- Remove at 1.0.
 import Data.Aeson
+import Data.Aeson.TH
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.String (fromString)
 
-data Account = Account { username :: Username
-                       , password :: Password
-                       , location :: Location
-                       , notes    :: Notes
+data Account = Account { accUsername :: Username
+                       , accPassword :: Password
+                       , accLocation :: Location
+                       , accNotes    :: Notes
                        } deriving (Eq, Ord, Show)
 
 type Accounts = [Account]
 
-instance FromJSON Account where
-    parseJSON (Object v) = Account <$>
-                           v .: "username" <*>
-                           v .: "password" <*>
-                           v .: "location" <*>
-                           v .: "notes"
+-- Remove at 1.0.
+data OldAccount = OldAccount { oldAccUsername :: String
+                             , oldAccPassword :: String
+                             , oldAccLocation :: String
+                             , oldAccNotes    :: String
+                             } deriving (Eq, Ord, Show)
+
+type OldAccounts = [OldAccount]
+
+instance FromJSON OldAccount where
+    parseJSON (Object v) = OldAccount <$>
+      v .: "username" <*>
+      v .: "password" <*>
+      v .: "location" <*>
+      v .: "notes"
     parseJSON _          = mzero
 
-instance ToJSON Account where
-    toJSON (Account un pw l n) = object $
-                                 [ "username" .= un
-                                 , "password" .= pw
-                                 , "location" .= l
-                                 , "notes"    .= n
-                                 ]
+instance ToJSON OldAccount where
+    toJSON (OldAccount un pw l n) = object $
+      [ "username" .= un
+      , "password" .= pw
+      , "location" .= l
+      , "notes"    .= n
+      ]
 
-readStorageData :: Filename
-                -> KeyLocation 
-                -> IO (Either DecryptError Accounts)
-readStorageData fn key = do
+deriveJSON defaultOptions ''Account
+
+readStorageData' :: FromJSON a => FilePath
+                 -> KeyLocation
+                 -> IO (Either DecryptError [a])
+readStorageData' fn key = do
   fContents <- B.readFile fn
-  fileData <- decrypt' (fromString key) fContents
+  fileData <- decrypt' key fContents
   case fileData of
     Left x -> return $ Left x
     Right x -> return . Right $ f x
@@ -47,7 +60,17 @@ readStorageData fn key = do
                 Just y -> y
                 Nothing -> []
 
-writeStorageData :: Filename
+readStorageData :: FilePath
+                -> KeyLocation
+                -> IO (Either DecryptError Accounts)
+readStorageData = readStorageData'
+
+readOldStorageData :: FilePath
+                   -> KeyLocation
+                   -> IO (Either DecryptError OldAccounts)
+readOldStorageData = readStorageData'
+
+writeStorageData :: FilePath
                  -> KeyLocation
                  -> Fingerprint
                  -> Accounts

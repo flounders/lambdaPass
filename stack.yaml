@@ -3,9 +3,6 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- aeson-0.11.1.4
 - bindings-gpgme-0.1.6
-- directory-1.2.5.1
 - h-gpgme-0.4.0.0
-- text-1.2.2.1
-resolver: lts-5.13
+resolver: lts-7.2

@@ -17,7 +17,7 @@
 
 module Main where
 
-import Text.LambdaPass.Logic (run) 
+import Text.LambdaPass.Logic (run)
 import Text.LambdaPass.Argument.Parser
 
 import Options.Applicative

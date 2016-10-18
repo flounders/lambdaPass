@@ -1,11 +1,15 @@
-{-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE TemplateHaskell #-}
 module Text.LambdaPass.Types where
 
-type Filename    = String
+import Data.Aeson
+import Data.Aeson.TH
+import Data.Text (Text)
+
 type Fingerprint = String
 type KeyLocation = String
-type Username    = String
-type Password    = String
-type Location    = String
-type Notes       = String
+newtype Username = Username { username :: Text } deriving (Eq, Ord, Show)
+newtype Password = Password { password :: Text } deriving (Eq, Ord, Show)
+newtype Location = Location { location :: Text } deriving (Eq, Ord, Show)
+newtype Notes = Notes { notes :: Text } deriving (Eq, Ord, Show)
+
+concat <$> mapM (deriveJSON defaultOptions) [''Username, ''Password, ''Location, ''Notes] 

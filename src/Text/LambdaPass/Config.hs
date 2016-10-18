@@ -3,13 +3,14 @@ module Text.LambdaPass.Config where
 
 import qualified Data.Aeson.Types as AT
 import Data.Yaml
+import Text.LambdaPass.Types
 
 data Config = Config { base :: BaseConfig } deriving Show
 
-data BaseConfig = BaseConfig { gpgDir :: Maybe FilePath 
-                             , gpgKey :: Maybe String
+data BaseConfig = BaseConfig { gpgDir :: Maybe FilePath
+                             , gpgKey :: Maybe Fingerprint
                              , passFile :: Maybe FilePath
-                             } 
+                             }
                              deriving Show
 
 instance FromJSON Config where

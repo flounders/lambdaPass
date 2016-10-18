@@ -8,6 +8,8 @@ import Control.Monad (join)
 import Crypto.Gpgme
 import Data.List (sort)
 import qualified Data.Set as S
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 
 -- Command router
 run :: Options -> IO ()
@@ -16,7 +18,7 @@ run (Options file fpr key cmd) = do
     Add u l n -> do
       accs <- readStorageData file key
       p <- passPrompt
-      newAccs <- addAccount accs u p (maybe "" (id) l) (maybe "" (id) n)
+      newAccs <- addAccount accs u p (maybe (Location T.empty) (id) l) (maybe (Notes T.empty) (id) n)
       writeStorageData file key fpr newAccs
     View u l n fields -> do
       accs <- readStorageData file key
@@ -33,6 +35,10 @@ run (Options file fpr key cmd) = do
       accs <- readStorageData file key
       remainingAccs <- removeAccount accs u l n
       writeStorageData file key fpr remainingAccs
+    Migrate -> do
+      accs <- readOldStorageData file key
+      newAccs <- migrate accs
+      writeStorageData file key fpr newAccs
 
 -- Command back ends
 addAccount :: Either DecryptError Accounts
@@ -60,11 +66,11 @@ viewAccount (Right accs) u l n fields = do
 
 fieldDisplay :: [AccountFields] -> [Account -> IO ()]
 fieldDisplay fields = map f $ sort fields
-  where f x = putStrLn . (case x of
-                            UserField  -> username
-                            PassField  -> password
-                            LocField   -> location
-                            NotesField -> notes)
+  where f x = TIO.putStrLn . (case x of
+                                UserField  -> username . accUsername
+                                PassField  -> password . accPassword
+                                LocField   -> location . accLocation
+                                NotesField -> notes . accNotes)
 
 viewAll :: Either DecryptError Accounts
         -> [AccountFields]
@@ -99,6 +105,12 @@ removeAccount (Left e) _ _ _ = decryptErrorHandler e >> return []
 removeAccount (Right accs) u l n = return $ filter (\x -> not $ elem x accsToRemove) accs
   where accsToRemove = accountFiltering u l n accs
 
+migrate :: Either DecryptError OldAccounts
+        -> IO Accounts
+migrate (Left e) = decryptErrorHandler e >> return []
+migrate (Right accs) = return $ map f accs
+  where f (OldAccount u p l n) = Account (Username . T.pack $ u) (Password . T.pack $ p) (Location . T.pack $ l) (Notes . T.pack $ n)
+
 -- Common helper functions
 decryptErrorHandler :: DecryptError -> IO ()
 decryptErrorHandler x =
@@ -112,8 +124,9 @@ accountFiltering :: Maybe Username
                  -> Maybe Notes
                  -> Accounts
                  -> Accounts
-accountFiltering u l n accs = concat . map (S.toList) . foldr f [] . filter (not . S.null) $ map (S.fromList) [filterBy (username) u, filterBy (location) l, filterBy (notes) n]
+accountFiltering u l n accs = concat . map (S.toList) . foldr f [] . filter (not . S.null) $ map (S.fromList) [filterBy (accUsername) u, filterBy (accLocation) l, filterBy (accNotes) n]
   where filterBy g = maybe [] (\x -> filter ((==) x . g) accs)
         f x [] = [x]
         f x (acc : []) = [S.intersection x acc]
         f _ _ = []
+
