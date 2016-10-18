@@ -31,7 +31,7 @@ data Command
            , upNotes  :: Maybe Notes
            }
   | Remove (Maybe Username) (Maybe Location) (Maybe Notes)
-  | Migrate
+  | Migrate -- Remove by 1.0
 
 data Options = Options FilePath Fingerprint KeyLocation Command
 
@@ -107,6 +107,7 @@ parseCommand = subparser $
                command "update" (parseUpdate `withInfo` "Update account info.") <>
                  command "remove" (parseRemove `withInfo` "Remove a username and password from the datastor.") <>
                command "migrate" (parseMigrate `withInfo` "Migrate old account data from initial release to new data structure. Only use this for data created before 2016-10-18.")
+               -- remove migrate by 1.0
 
 parseAdd :: Parser Command
 parseAdd = Add
@@ -157,6 +158,7 @@ parseUpdate =
   <*> optional parseUpdateLocation
   <*> optional parseUpdateNotes
 
+-- remove before 1.0
 parseMigrate :: Parser Command
 parseMigrate = pure Migrate
 

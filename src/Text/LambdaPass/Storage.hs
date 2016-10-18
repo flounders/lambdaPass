@@ -20,7 +20,7 @@ data Account = Account { accUsername :: Username
 
 type Accounts = [Account]
 
--- Remove at 1.0.
+-- Remove by 1.0.
 data OldAccount = OldAccount { oldAccUsername :: String
                              , oldAccPassword :: String
                              , oldAccLocation :: String
@@ -65,6 +65,7 @@ readStorageData :: FilePath
                 -> IO (Either DecryptError Accounts)
 readStorageData = readStorageData'
 
+-- remove by 1.0
 readOldStorageData :: FilePath
                    -> KeyLocation
                    -> IO (Either DecryptError OldAccounts)

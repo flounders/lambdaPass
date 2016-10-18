@@ -35,7 +35,7 @@ run (Options file fpr key cmd) = do
       accs <- readStorageData file key
       remainingAccs <- removeAccount accs u l n
       writeStorageData file key fpr remainingAccs
-    Migrate -> do
+    Migrate -> do -- remove this command before 1.0
       accs <- readOldStorageData file key
       newAccs <- migrate accs
       writeStorageData file key fpr newAccs
