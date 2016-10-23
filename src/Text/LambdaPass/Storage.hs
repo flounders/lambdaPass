@@ -8,9 +8,12 @@ import Crypto.Gpgme
 import Control.Monad (mzero) -- Remove at 1.0.
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Bool (bool)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.String (fromString)
+import System.Directory (doesFileExist)
+import System.IO (hFlush, stdout)
 
 data Account = Account { accUsername :: Username
                        , accPassword :: Password
@@ -51,6 +54,8 @@ readStorageData' :: FromJSON a => FilePath
                  -> KeyLocation
                  -> IO (Either DecryptError [a])
 readStorageData' fn key = do
+  fileExists <- doesFileExist fn
+  bool g (return ()) fileExists
   fContents <- B.readFile fn
   fileData <- decrypt' key fContents
   case fileData of
@@ -59,6 +64,14 @@ readStorageData' fn key = do
   where f x = case decode $ BL.fromStrict x of
                 Just y -> y
                 Nothing -> []
+        g = do
+          putStr ("Would you like to create the storage file \"" ++ fn ++ "\"? ")
+          hFlush stdout
+          answer <- getLine
+          case answer of
+            ('Y':_) -> writeFile fn ""
+            ('y':_) -> writeFile fn ""
+            _ -> return ()
 
 readStorageData :: FilePath
                 -> KeyLocation
