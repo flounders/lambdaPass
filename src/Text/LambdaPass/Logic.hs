@@ -7,6 +7,7 @@ import Text.LambdaPass.Types
 import Control.Monad (join)
 import Crypto.Gpgme
 import Data.List (sort)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -18,7 +19,7 @@ run (Options file fpr key cmd) = do
     Add u l n -> do
       accs <- readStorageData file key
       p <- passPrompt
-      newAccs <- addAccount accs u p (maybe (Location T.empty) (id) l) (maybe (Notes T.empty) (id) n)
+      newAccs <- addAccount accs u p (fromMaybe (Location T.empty) l) (fromMaybe (Notes T.empty) n)
       writeStorageData file key fpr newAccs
     View u l n fields -> do
       accs <- readStorageData file key
@@ -61,7 +62,7 @@ viewAccount :: Either DecryptError Accounts
 viewAccount (Left e) _ _ _ _ = decryptErrorHandler e
 viewAccount (Right accs) u l n fields = do
   let sel = accountFiltering u l n accs
-  _ <- sequence . join . map (\x -> map (flip ($) x) (fieldDisplay fields)) $ sel
+  _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ sel
   return ()
 
 fieldDisplay :: [AccountFields] -> [Account -> IO ()]
@@ -77,7 +78,7 @@ viewAll :: Either DecryptError Accounts
         -> IO ()
 viewAll (Left e) _  = decryptErrorHandler e
 viewAll (Right accs) fields = do
-  _ <- sequence . join . map (\x -> map (flip ($) x) (fieldDisplay fields)) $ accs
+  _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ accs
   return ()
 
 updateAccount :: Either DecryptError Accounts
@@ -91,8 +92,7 @@ updateAccount :: Either DecryptError Accounts
               -> IO Accounts
 updateAccount (Left e) _ _ _ _ _ _ _ = decryptErrorHandler e >> return []
 updateAccount (Right accs) sU sL sN uU uP uL uN = return . ((++) unSelAccs) . map f $ selAccs
-  where f (Account u p l n) = Account (maybeId u uU) (maybeId p uP) (maybeId l uL) (maybeId n uN)
-        maybeId b a = maybe b (id) a
+  where f (Account u p l n) = Account (fromMaybe u uU) (fromMaybe p uP) (fromMaybe l uL) (fromMaybe n uN)
         selAccs = accountFiltering sU sL sN accs
         unSelAccs = filter (not . flip elem selAccs) accs
 
@@ -109,7 +109,8 @@ migrate :: Either DecryptError OldAccounts
         -> IO Accounts
 migrate (Left e) = decryptErrorHandler e >> return []
 migrate (Right accs) = return $ map f accs
-  where f (OldAccount u p l n) = Account (Username . T.pack $ u) (Password . T.pack $ p) (Location . T.pack $ l) (Notes . T.pack $ n)
+  where f (OldAccount u p l n) = Account (g Username u) (g Password p) (g Location l) (g Notes n)
+        g h x = h . T.pack $ x
 
 -- Common helper functions
 decryptErrorHandler :: DecryptError -> IO ()
@@ -124,9 +125,9 @@ accountFiltering :: Maybe Username
                  -> Maybe Notes
                  -> Accounts
                  -> Accounts
-accountFiltering u l n accs = concat . map (S.toList) . foldr f [] . filter (not . S.null) $ map (S.fromList) [filterBy (accUsername) u, filterBy (accLocation) l, filterBy (accNotes) n]
+accountFiltering u l n accs = concat . map (S.toList) . foldr f [] . filter (not . S.null) $ map (S.fromList) xs
   where filterBy g = maybe [] (\x -> filter ((==) x . g) accs)
         f x [] = [x]
         f x (acc : []) = [S.intersection x acc]
         f _ _ = []
-
+        xs = [filterBy (accUsername) u, filterBy (accLocation) l, filterBy (accNotes) n]
