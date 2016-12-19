@@ -63,7 +63,7 @@ help will explain the options. -f, -p and -k are always needed, however they
 can be supplied from a config file that lpass creates upon first run. You can
 find it in ~/.config/lambdaPass/lambdaPass.yml. The following examples will
 assume you have this config file setup. Setup of the config will be covered
-furthur down.
+further down.
 
 ### Viewing Passwords
 
