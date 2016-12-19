@@ -14,9 +14,9 @@ You will need the C headers for GPGME, and the standard C++ libary
 for some Haskell packages. On Ubuntu you can install GPGME's headers
 by running `sudo apt-get install libgpgme11-dev`, but other package
 managers will obviously be different. Most distributions should have
-the standard C++ library installed, but you mileage may vary. Haskell
+the standard C++ library installed, but your mileage may vary. Haskell
 packages will be supplied by stack, so you will need that installed
-as. To install Haskell stack: 
+as well. To install Haskell stack: 
 [http://docs.haskellstack.org/en/stable/install_and_upgrade/](http://docs.haskellstack.org/en/stable/install_and_upgrade/)
 
 ## Build
