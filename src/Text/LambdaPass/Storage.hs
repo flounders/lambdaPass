@@ -1,58 +1,56 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+
 module Text.LambdaPass.Storage where
 
 import Text.LambdaPass.Types
 
-import Crypto.Gpgme
 import Control.Monad (mzero) -- Remove at 1.0.
+import Crypto.Gpgme
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Bool (bool)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import System.Directory (doesFileExist)
 import System.IO (hFlush, stdout)
 
-data Account = Account { accUsername :: Username
-                       , accPassword :: Password
-                       , accLocation :: Location
-                       , accNotes    :: Notes
-                       } deriving (Eq, Ord, Show)
+data Account = Account
+  { accUsername :: Username
+  , accPassword :: Password
+  , accLocation :: Location
+  , accNotes :: Notes
+  } deriving (Eq, Ord, Show)
 
 type Accounts = [Account]
 
 -- Remove by 1.0.
-data OldAccount = OldAccount { oldAccUsername :: String
-                             , oldAccPassword :: String
-                             , oldAccLocation :: String
-                             , oldAccNotes    :: String
-                             } deriving (Eq, Ord, Show)
+data OldAccount = OldAccount
+  { oldAccUsername :: String
+  , oldAccPassword :: String
+  , oldAccLocation :: String
+  , oldAccNotes :: String
+  } deriving (Eq, Ord, Show)
 
 type OldAccounts = [OldAccount]
 
 instance FromJSON OldAccount where
-    parseJSON (Object v) = OldAccount <$>
-      v .: "username" <*>
-      v .: "password" <*>
-      v .: "location" <*>
-      v .: "notes"
-    parseJSON _          = mzero
+  parseJSON (Object v) =
+    OldAccount <$> v .: "username" <*> v .: "password" <*> v .: "location" <*>
+    v .: "notes"
+  parseJSON _ = mzero
 
 instance ToJSON OldAccount where
-    toJSON (OldAccount un pw l n) = object $
-      [ "username" .= un
-      , "password" .= pw
-      , "location" .= l
-      , "notes"    .= n
-      ]
+  toJSON (OldAccount un pw l n) =
+    object ["username" .= un, "password" .= pw, "location" .= l, "notes" .= n]
 
 deriveJSON defaultOptions ''Account
 
-readStorageData' :: FromJSON a => FilePath
-                 -> KeyLocation
-                 -> IO (Either DecryptError [a])
+readStorageData'
+  :: FromJSON a
+  => FilePath -> KeyLocation -> IO (Either DecryptError [a])
 readStorageData' fn key = do
   fileExists <- doesFileExist fn
   bool g (return ()) fileExists
@@ -61,21 +59,18 @@ readStorageData' fn key = do
   case fileData of
     Left x -> return $ Left x
     Right x -> return . Right $ f x
-  where f x = case decode $ BL.fromStrict x of
-                Just y -> y
-                Nothing -> []
-        g = do
-          putStr ("Would you like to create the storage file \"" ++ fn ++ "\"? ")
-          hFlush stdout
-          answer <- getLine
-          case answer of
-            ('Y':_) -> writeFile fn ""
-            ('y':_) -> writeFile fn ""
-            _ -> return ()
+  where
+    f x = fromMaybe [] (decode $ BL.fromStrict x)
+    g = do
+      putStr ("Would you like to create the storage file \"" ++ fn ++ "\"? ")
+      hFlush stdout
+      answer <- getLine
+      case answer of
+        ('Y':_) -> writeFile fn ""
+        ('y':_) -> writeFile fn ""
+        _ -> return ()
 
-readStorageData :: FilePath
-                -> KeyLocation
-                -> IO (Either DecryptError Accounts)
+readStorageData :: FilePath -> KeyLocation -> IO (Either DecryptError Accounts)
 readStorageData = readStorageData'
 
 -- remove by 1.0
@@ -84,11 +79,7 @@ readOldStorageData :: FilePath
                    -> IO (Either DecryptError OldAccounts)
 readOldStorageData = readStorageData'
 
-writeStorageData :: FilePath
-                 -> KeyLocation
-                 -> Fingerprint
-                 -> Accounts
-                 -> IO ()
+writeStorageData :: FilePath -> KeyLocation -> Fingerprint -> Accounts -> IO ()
 writeStorageData fn key fpr accs = do
   results <- encrypt' key (fromString fpr) (BL.toStrict $ encode accs)
   case results of
