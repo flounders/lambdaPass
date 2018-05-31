@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Text.LambdaPass.Logic where
 
 import Text.LambdaPass.Argument.Parser
@@ -9,6 +10,7 @@ import Crypto.Gpgme
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
@@ -19,54 +21,63 @@ run (Options file fpr key cmd) =
     Add u l n -> do
       accs <- readStorageData file key
       p <- passPrompt
-      newAccs <-
-        addAccount
-          accs
-          (Account u p (fromMaybe (Location T.empty) l) (fromMaybe (Notes T.empty) n))
-      writeStorageData file key fpr newAccs
+      let newAccs = addAccount
+                      accs
+                      (Account
+                        u
+                        p
+                        (fromMaybe (Location T.empty) l)
+                        (fromMaybe (Notes T.empty) n))
+      case newAccs of
+        Left e -> TIO.putStrLn e
+        Right newAccs' -> writeStorageData file key fpr newAccs'
     View u l n fields -> do
       accs <- readStorageData file key
-      viewAccount accs u l n fields
+      viewAccount accs (AccountSelector u l n) fields
     ViewAll fields -> do
       accs <- readStorageData file key
       viewAll accs fields
     Update sU sL sN uU uP uL uN -> do
       accs <- readStorageData file key
       nP <- sequence uP
-      updatedAccs <- updateAccount accs sU sL sN uU nP uL uN
-      writeStorageData file key fpr updatedAccs
+      let updatedAccs = updateAccount accs (AccountSelector sU sL sN) uU nP uL uN
+      case updatedAccs of
+        Left e -> TIO.putStrLn e
+        Right updatedAccs' -> writeStorageData file key fpr updatedAccs'
     Remove u l n -> do
       accs <- readStorageData file key
-      remainingAccs <- removeAccount accs u l n
-      writeStorageData file key fpr remainingAccs
+      let remainingAccs = removeAccount accs (AccountSelector u l n)
+      case remainingAccs of
+        Left e -> TIO.putStrLn e
+        Right remainingAccs' -> writeStorageData file key fpr remainingAccs'
     Migrate -- remove this command before 1.0
      -> do
       accs <- readOldStorageData file key
-      newAccs <- migrate accs
-      writeStorageData file key fpr newAccs
+      let newAccs = migrate accs
+      case newAccs of
+        Left e -> TIO.putStrLn e
+        Right newAccs' -> writeStorageData file key fpr newAccs'
 
 -- Command back ends
 addAccount
   :: Either DecryptError Accounts
   -> Account
-  -> IO Accounts
+  -> Either Text Accounts
 addAccount (Left x) account =
   case x of
-    NoData -> return [account]
-    _ -> decryptErrorHandler x >> return []
+    NoData -> Right [account]
+    _ -> Left $ decryptErrorHandler x
 addAccount (Right accs) account =
   return $ accs ++ [account]
 
 viewAccount
   :: Either DecryptError Accounts
-  -> Maybe Username
-  -> Maybe Location
-  -> Maybe Notes
+  -> AccountSelector
   -> [AccountFields]
   -> IO ()
-viewAccount (Left e) _ _ _ _ = decryptErrorHandler e
-viewAccount (Right accs) u l n fields = do
-  let sel = accountFiltering u l n accs
+viewAccount (Left e) _ _ = TIO.putStrLn $ decryptErrorHandler e
+viewAccount (Right accs) selector fields = do
+  let sel = accountFiltering selector accs
   _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ sel
   return ()
 
@@ -82,24 +93,22 @@ fieldDisplay fields = map f $ sort fields
          NotesField -> notes . accNotes)
 
 viewAll :: Either DecryptError Accounts -> [AccountFields] -> IO ()
-viewAll (Left e) _ = decryptErrorHandler e
+viewAll (Left e) _ = TIO.putStrLn $ decryptErrorHandler e
 viewAll (Right accs) fields = do
   _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ accs
   return ()
 
 updateAccount
   :: Either DecryptError Accounts
-  -> Maybe Username
-  -> Maybe Location
-  -> Maybe Notes
+  -> AccountSelector
   -> Maybe Username
   -> Maybe Password
   -> Maybe Location
   -> Maybe Notes
-  -> IO Accounts
-updateAccount (Left e) _ _ _ _ _ _ _ = decryptErrorHandler e >> return []
-updateAccount (Right accs) sU sL sN uU uP uL uN =
-  return . (unSelAccs ++) . map f $ selAccs
+  -> Either Text Accounts
+updateAccount (Left e) _ _ _ _ _ = Left $ decryptErrorHandler e
+updateAccount (Right accs) selector uU uP uL uN =
+  Right . (unSelAccs ++) . map f $ selAccs
   where
     f (Account u p l n) =
       Account
@@ -107,43 +116,39 @@ updateAccount (Right accs) sU sL sN uU uP uL uN =
         (fromMaybe p uP)
         (fromMaybe l uL)
         (fromMaybe n uN)
-    selAccs = accountFiltering sU sL sN accs
+    selAccs = accountFiltering selector accs
     unSelAccs = filter (not . flip elem selAccs) accs
 
 removeAccount
   :: Either DecryptError Accounts
-  -> Maybe Username
-  -> Maybe Location
-  -> Maybe Notes
-  -> IO Accounts
-removeAccount (Left e) _ _ _ = decryptErrorHandler e >> return []
-removeAccount (Right accs) u l n = return $ filter (`notElem` accsToRemove) accs
+  -> AccountSelector
+  -> Either Text Accounts
+removeAccount (Left e) _ = Left $ decryptErrorHandler e
+removeAccount (Right accs) selector = Right $ filter (`notElem` accsToRemove) accs
   where
-    accsToRemove = accountFiltering u l n accs
+    accsToRemove = accountFiltering selector accs
 
-migrate :: Either DecryptError OldAccounts -> IO Accounts
-migrate (Left e) = decryptErrorHandler e >> return []
-migrate (Right accs) = return $ map f accs
+migrate :: Either DecryptError OldAccounts
+        -> Either Text Accounts
+migrate (Left e) = Left $ decryptErrorHandler e
+migrate (Right accs) = Right $ map f accs
   where
     f (OldAccount u p l n) =
       Account (g Username u) (g Password p) (g Location l) (g Notes n)
     g h = h . T.pack
 
 -- Common helper functions
-decryptErrorHandler :: DecryptError -> IO ()
+decryptErrorHandler :: DecryptError -> Text
 decryptErrorHandler x =
-  putStrLn $
   case x of
     NoData -> "No data in the passwords file."
     BadPass -> "Wrong password. Please enter again."
     _ -> "Encountered an unhandled error."
 
-accountFiltering :: Maybe Username
-                 -> Maybe Location
-                 -> Maybe Notes
+accountFiltering :: AccountSelector
                  -> Accounts
                  -> Accounts
-accountFiltering u l n accs =
+accountFiltering (AccountSelector u l n) accs =
   concatMap S.toList . foldr f [] . filter (not . S.null) $ map S.fromList xs
   where
     filterBy g = maybe [] (\x -> filter ((==) x . g) accs)
