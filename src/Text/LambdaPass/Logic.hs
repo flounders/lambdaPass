@@ -15,7 +15,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
 -- Command router
-run :: Options -> IO ()
+run :: Options
+    -> IO ()
 run (Options file fpr key cmd) =
   case cmd of
     Add u l n -> do
@@ -81,7 +82,9 @@ viewAccount (Right accs) selector fields = do
   _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ sel
   return ()
 
-fieldDisplay :: [AccountFields] -> [Account -> IO ()]
+fieldDisplay
+  :: [AccountFields]
+  -> [Account -> IO ()]
 fieldDisplay fields = map f $ sort fields
   where
     f x =
@@ -92,7 +95,8 @@ fieldDisplay fields = map f $ sort fields
          LocField -> location . accLocation
          NotesField -> notes . accNotes)
 
-viewAll :: Either DecryptError Accounts -> [AccountFields] -> IO ()
+viewAll :: Either DecryptError Accounts
+        -> [AccountFields] -> IO ()
 viewAll (Left e) _ = TIO.putStrLn $ decryptErrorHandler e
 viewAll (Right accs) fields = do
   _ <- sequence . join . map (\x -> map ($ x) (fieldDisplay fields)) $ accs
@@ -128,8 +132,9 @@ removeAccount (Right accs) selector = Right $ filter (`notElem` accsToRemove) ac
   where
     accsToRemove = accountFiltering selector accs
 
-migrate :: Either DecryptError OldAccounts
-        -> Either Text Accounts
+migrate
+  :: Either DecryptError OldAccounts
+  -> Either Text Accounts
 migrate (Left e) = Left $ decryptErrorHandler e
 migrate (Right accs) = Right $ map f accs
   where
@@ -138,16 +143,19 @@ migrate (Right accs) = Right $ map f accs
     g h = h . T.pack
 
 -- Common helper functions
-decryptErrorHandler :: DecryptError -> Text
+decryptErrorHandler
+  :: DecryptError
+  -> Text
 decryptErrorHandler x =
   case x of
     NoData -> "No data in the passwords file."
     BadPass -> "Wrong password. Please enter again."
     _ -> "Encountered an unhandled error."
 
-accountFiltering :: AccountSelector
-                 -> Accounts
-                 -> Accounts
+accountFiltering
+  :: AccountSelector
+  -> Accounts
+  -> Accounts
 accountFiltering (AccountSelector u l n) accs =
   concatMap S.toList . foldr f [] . filter (not . S.null) $ map S.fromList xs
   where

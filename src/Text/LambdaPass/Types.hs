@@ -17,4 +17,4 @@ data AccountSelector = AccountSelector { selectUsername :: Maybe Username
                                        , selectNotes :: Maybe Notes
                                        } deriving Show
 
-concat <$> mapM (deriveJSON defaultOptions) [''Username, ''Password, ''Location, ''Notes] 
+concat <$> mapM (deriveJSON defaultOptions) [''Username, ''Password, ''Location, ''Notes]

@@ -50,7 +50,9 @@ deriveJSON defaultOptions ''Account
 
 readStorageData'
   :: FromJSON a
-  => FilePath -> KeyLocation -> IO (Either DecryptError [a])
+  => FilePath
+  -> KeyLocation
+  -> IO (Either DecryptError [a])
 readStorageData' fn key = do
   fileExists <- doesFileExist fn
   bool g (return ()) fileExists
@@ -70,16 +72,25 @@ readStorageData' fn key = do
         ('y':_) -> writeFile fn ""
         _ -> return ()
 
-readStorageData :: FilePath -> KeyLocation -> IO (Either DecryptError Accounts)
+readStorageData
+  :: FilePath
+  -> KeyLocation
+  -> IO (Either DecryptError Accounts)
 readStorageData = readStorageData'
 
 -- remove by 1.0
-readOldStorageData :: FilePath
-                   -> KeyLocation
-                   -> IO (Either DecryptError OldAccounts)
+readOldStorageData
+  :: FilePath
+  -> KeyLocation
+  -> IO (Either DecryptError OldAccounts)
 readOldStorageData = readStorageData'
 
-writeStorageData :: FilePath -> KeyLocation -> Fingerprint -> Accounts -> IO ()
+writeStorageData
+  :: FilePath
+  -> KeyLocation
+  -> Fingerprint
+  -> Accounts
+  -> IO ()
 writeStorageData fn key fpr accs = do
   results <- encrypt' key (fromString fpr) (BL.toStrict $ encode accs)
   case results of

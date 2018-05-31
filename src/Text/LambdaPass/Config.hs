@@ -25,5 +25,7 @@ instance FromJSON BaseConfig where
     BaseConfig <$> v .:? "gpgDir" <*> v .:? "gpgKey" <*> v .:? "passFile"
   parseJSON invalid = AT.typeMismatch "BaseConfig" invalid
 
-loadConfig :: FilePath -> IO (Maybe Config)
+loadConfig
+  :: FilePath
+  -> IO (Maybe Config)
 loadConfig = decodeFile

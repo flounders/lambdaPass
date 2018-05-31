@@ -53,21 +53,27 @@ parseOptions = do
                    <*> parseKey (join . fmap (gpgDir . base) $ config)
                    <*> parseCommand
 
-parseFile :: Maybe FilePath -> Parser FilePath
+parseFile
+  :: Maybe FilePath
+  -> Parser FilePath
 parseFile fn =
   strOption $ short 'f' <> long "file" <> metavar "FILE" <> case fn of
                                                               Just x -> value x <> h
                                                               _      -> h
   where h = help "Encrypted file that contains passwords."
 
-parseFingerprint :: Maybe Fingerprint -> Parser Fingerprint
+parseFingerprint
+  :: Maybe Fingerprint
+  -> Parser Fingerprint
 parseFingerprint fpr =
   strOption $ short 'p' <> long "fpr" <> metavar "FINGERPRINT" <> case fpr of
                                                                     Just x -> value x <> h
                                                                     _      -> h
   where h = help "The fingerprint for the key you will use to encrypt the passwords file."
 
-parseKey :: Maybe KeyLocation -> Parser KeyLocation
+parseKey
+  :: Maybe KeyLocation
+  -> Parser KeyLocation
 parseKey keyDir =
   strOption $ short 'k' <> long "key" <> metavar "GPGKEY" <> case keyDir of
                                                                Just x -> value x <> h
@@ -132,7 +138,9 @@ parserViewAll =
 
 -- parseFields takes a string that contains the default fields you wish to display.
 -- It then returns the fields the user requested or that you set as default.
-parseFields :: String -> Parser [AccountFields]
+parseFields
+  :: String
+  -> Parser [AccountFields]
 parseFields def =
   foldr f [] <$> strOption (short 'f' <> long "fields" <> value def <> metavar "FIELDS"
   <> help ("These are the account fields you wish displayed. Use 'u' for user, 'l' for location "
@@ -179,5 +187,8 @@ parseRemove = Remove
 
 -- Helper Functions
 
-withInfo :: Parser a -> String -> ParserInfo a
+withInfo
+  :: Parser a
+  -> String
+  -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
