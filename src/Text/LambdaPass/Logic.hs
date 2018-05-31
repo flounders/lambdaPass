@@ -22,10 +22,7 @@ run (Options file fpr key cmd) =
       newAccs <-
         addAccount
           accs
-          u
-          p
-          (fromMaybe (Location T.empty) l)
-          (fromMaybe (Notes T.empty) n)
+          (Account u p (fromMaybe (Location T.empty) l) (fromMaybe (Notes T.empty) n))
       writeStorageData file key fpr newAccs
     View u l n fields -> do
       accs <- readStorageData file key
@@ -51,17 +48,14 @@ run (Options file fpr key cmd) =
 -- Command back ends
 addAccount
   :: Either DecryptError Accounts
-  -> Username
-  -> Password
-  -> Location
-  -> Notes
+  -> Account
   -> IO Accounts
-addAccount (Left x) un pass loc note =
+addAccount (Left x) account =
   case x of
-    NoData -> return [Account un pass loc note]
+    NoData -> return [account]
     _ -> decryptErrorHandler x >> return []
-addAccount (Right accs) un pass loc note =
-  return $ accs ++ [Account un pass loc note]
+addAccount (Right accs) account =
+  return $ accs ++ [account]
 
 viewAccount
   :: Either DecryptError Accounts
