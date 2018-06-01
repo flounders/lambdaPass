@@ -7,6 +7,7 @@ import Text.LambdaPass.Types
 
 import Control.Monad (join)
 import Crypto.Gpgme
+import Data.Either (either)
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
@@ -29,9 +30,7 @@ run (Options file fpr key cmd) =
                         p
                         (fromMaybe (Location T.empty) l)
                         (fromMaybe (Notes T.empty) n))
-      case newAccs of
-        Left e -> TIO.putStrLn e
-        Right newAccs' -> writeStorageData file key fpr newAccs'
+      either (TIO.putStrLn) (writeStorageData file key fpr) newAccs
     View u l n fields -> do
       accs <- readStorageData file key
       viewAccount accs (AccountSelector u l n) fields
@@ -42,22 +41,16 @@ run (Options file fpr key cmd) =
       accs <- readStorageData file key
       nP <- sequence uP
       let updatedAccs = updateAccount accs (AccountSelector sU sL sN) uU nP uL uN
-      case updatedAccs of
-        Left e -> TIO.putStrLn e
-        Right updatedAccs' -> writeStorageData file key fpr updatedAccs'
+      either (TIO.putStrLn) (writeStorageData file key fpr) updatedAccs
     Remove u l n -> do
       accs <- readStorageData file key
       let remainingAccs = removeAccount accs (AccountSelector u l n)
-      case remainingAccs of
-        Left e -> TIO.putStrLn e
-        Right remainingAccs' -> writeStorageData file key fpr remainingAccs'
+      either (TIO.putStrLn) (writeStorageData file key fpr) remainingAccs
     Migrate -- remove this command before 1.0
      -> do
       accs <- readOldStorageData file key
       let newAccs = migrate accs
-      case newAccs of
-        Left e -> TIO.putStrLn e
-        Right newAccs' -> writeStorageData file key fpr newAccs'
+      either (TIO.putStrLn) (writeStorageData file key fpr) newAccs
 
 -- Command back ends
 addAccount
