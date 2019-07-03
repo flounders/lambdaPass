@@ -12,4 +12,9 @@ newtype Password = Password { password :: Text } deriving (Eq, Ord, Show)
 newtype Location = Location { location :: Text } deriving (Eq, Ord, Show)
 newtype Notes = Notes { notes :: Text } deriving (Eq, Ord, Show)
 
-concat <$> mapM (deriveJSON defaultOptions) [''Username, ''Password, ''Location, ''Notes] 
+data AccountSelector = AccountSelector { selectUsername :: Maybe Username
+                                       , selectLocation :: Maybe Location
+                                       , selectNotes :: Maybe Notes
+                                       } deriving Show
+
+concat <$> mapM (deriveJSON defaultOptions) [''Username, ''Password, ''Location, ''Notes]
